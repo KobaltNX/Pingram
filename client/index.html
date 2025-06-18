@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <title>Pingram Chat</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="container">
+    <h1>💬 Pingram</h1>
+    <div id="chat" class="chat-box"></div>
+
+    <div class="input-area">
+      <input id="msg" placeholder="Введите сообщение..." autocomplete="off">
+      <button onclick="send()">📨</button>
+      <input type="file" id="imageInput" accept="image/*" style="display: none;">
+      <button onclick="document.getElementById('imageInput').click()">🖼️</button>
+    </div>
+
+    <button onclick="togglePremium()" class="premium-btn">🌟 Pingram Premium</button>
+  </div>
+
+  <script>
+    let username = "";
+    while (!username) {
+      username = prompt("Введите ваш ник:");
+    }
+
+    let isPremium = localStorage.getItem("pingram-premium") === "true";
+
+    const socket = new WebSocket("ws://localhost:3000");
+    const chat = document.getElementById("chat");
+
+    socket.onmessage = async (event) => {
+      let data;
+      try {
+        const raw = await (event.data instanceof Blob ? event.data.text() : event.data);
+        data = JSON.parse(raw);
+      } catch (e) {
+        console.error("Ошибка парсинга:", e);
+        return;
+      }
+
+      const msg = document.createElement("div");
+      msg.className = "message";
+
+      const avatar = document.createElement("div");
+      avatar.className = "avatar";
+      avatar.textContent = data.name[0].toUpperCase();
+
+      const bubble = document.createElement("div");
+      bubble.className = "bubble";
+
+      const nameSpan = document.createElement("strong");
+      nameSpan.textContent = data.name;
+
+      if (data.premium) {
+        const star = document.createElement("span");
+        star.textContent = " 🌟";
+        star.className = "premium-star";
+        nameSpan.appendChild(star);
+      }
+
+      bubble.appendChild(nameSpan);
+      bubble.appendChild(document.createElement("br"));
+
+      if (data.type === "image") {
+        const img = new Image();
+        img.src = data.imageData;
+        img.className = "image-msg";
+        bubble.appendChild(img);
+      } else {
+        bubble.append(data.text);
+      }
+
+      msg.appendChild(avatar);
+      msg.appendChild(bubble);
+      chat.appendChild(msg);
+      chat.scrollTop = chat.scrollHeight;
+    };
+
+    function send() {
+      const input = document.getElementById("msg");
+      const msg = input.value.trim();
+      if (msg !== "") {
+        socket.send(JSON.stringify({
+          name: username,
+          text: msg,
+          premium: isPremium,
+          type: "text"
+        }));
+        input.value = '';
+      }
+    }
+
+    document.getElementById("imageInput").addEventListener("change", function () {
+      const file = this.files[0];
+      if (file) {
+        const reader = new FileReader();
+        reader.onload = function () {
+          socket.send(JSON.stringify({
+            name: username,
+            premium: isPremium,
+            type: "image",
+            imageData: reader.result
+          }));
+        };
+        reader.readAsDataURL(file);
+      }
+    });
+
+    function togglePremium() {
+      isPremium = !isPremium;
+      localStorage.setItem("pingram-premium", isPremium);
+      alert(isPremium ? "🎉 Premium активирован!" : "❌ Premium отключён.");
+    }
+  </script>
+</body>
+</html>
